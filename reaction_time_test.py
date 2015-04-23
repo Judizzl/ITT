@@ -4,25 +4,27 @@
 import sys
 import threading
 import csv
+import time
 from PyQt5 import QtGui, QtWidgets, QtCore
 from datetime import datetime
 from itertools import islice
 from random import randint
 
+
 class ClickRecorder(QtWidgets.QWidget):
-    
+
     def __init__(self):
         super(ClickRecorder, self).__init__()
         self.counter = -1
-        self.draw = False
+        self.trial = 0
         self.start = datetime.now()
         self.initUI()
         self.readDescription()
         self.calculateOrder()
         self.organizeTest()
         self.createCSV()
-        
-    def initUI(self):      
+
+    def initUI(self):
         self.setGeometry(150, 100, 750, 500)
         self.setWindowTitle('ReactionTime')
         self.show()
@@ -38,10 +40,11 @@ class ClickRecorder(QtWidgets.QWidget):
             self.description.append(value)
 
     def calculateOrder(self):
-        self.orderMatrix = [[1,2,3,4],[4,3,2,1],[2,4,1,3],[3,1,4,2]]
-        self.order = self.orderMatrix[int(self.description[0])-1]
-        self.currentTest = self.order[0]
-        print (self.order)
+        self.orderMatrix = [[1, 2, 3, 4], [4, 3, 2, 1],
+                            [2, 4, 1, 3], [3, 1, 4, 2]]
+        self.order = self.orderMatrix[(int(self.description[0]) % 4) - 1]
+        self.pos = 0
+        self.currentTest = self.order[self.pos]
 
     def organizeTest(self):
         if self.currentTest == 1:
@@ -69,42 +72,54 @@ class ClickRecorder(QtWidgets.QWidget):
                         "(Start by pressing 'Space')"
             self.usedHand = "L"
 
-
     def keyPressEvent(self, ev):
         if ev.key() == QtCore.Qt.Key_Space:
             self.counter = 0
+            self.diff = 0
+            self.shownCharacter = ""
+            self.pressedCharacter = ""
+            self.draw = True
             self.startTimer()
-        if ev.key() == QtCore.Qt.Key_X:
+        else:
             diff = datetime.now() - self.start
-            print (diff.microseconds / 1000)
-            self.draw = False
-            self.wr.writerow([str(datetime.now()), self.description[0], self.description[1], self.usedHand, str(self.order).strip('[]'), str(self.currentTest), self.counter, str(self.counter * self.currentTest), self.shownCharacter, "X", str(diff.microseconds / 1000)])
-            self.update()
-        if ev.key() == QtCore.Qt.Key_M:
-            diff = datetime.now() - self.start
-            print (diff.microseconds / 1000)
-            self.draw = False
-            self.wr.writerow([str(datetime.now()), self.description[0], self.description[1], self.usedHand, str(self.order).strip('[]'), str(self.currentTest), self.counter, str(self.counter * self.currentTest), self.shownCharacter, "M", str(diff.microseconds / 1000)])
-            self.update()
+            self.diff = diff.microseconds / 1000
+        self.pressedCharacter = str(ev.text())
 
     def startTimer(self):
+        self.draw = not self.draw
         timeBetweenSignals = float(self.description[3]) / 1000
         t = threading.Timer(timeBetweenSignals, self.startTimer)
         t.start()
-        if self.counter < int(self.description[2]) + 2 and self.counter > -1:
-            self.start = datetime.now()
-            self.update()
-            if self.counter > 0:
-                self.draw=True
-            self.counter = self.counter + 1
+        if self.counter < int(self.description[2])\
+           + 2 and self.counter > -1:
+            if(self.draw is True):
+                self.start = datetime.now()
+                self.update()
+                self.trial += 1
+                self.counter += 1
+                self.pressedCharacter = ""
+                self.diff = 1000
+            else:
+                if self.counter != 0:
+                    self.wr.writerow([str(datetime.now()), self.description[0],
+                                      self.description[1], self.usedHand,
+                                      str(self.order).strip('[]'),
+                                      str(self.currentTest),
+                                      str(self.counter), str(self.trial),
+                                      self.shownCharacter,
+                                      self.pressedCharacter, str(self.diff)])
+                self.update()
         else:
             t.cancel()
             t.join()
 
     def createCSV(self):
         file = open("log_" + self.description[0] + ".csv", "w+")
-        self.wr = csv.writer(file, delimiter=";", quoting = csv.QUOTE_ALL)
-        self.wr.writerow(["timestamp", "user", "handedness", "used hand", "task-order", "condition" "repetition", "trial", "shown character", "pressed character", "reaction time(ms)"])
+        self.wr = csv.writer(file, delimiter=";", quoting=csv.QUOTE_ALL)
+        self.wr.writerow(["timestamp", "user", "handedness",
+                          "used hand", "task-order", "condition",
+                          "repetition", "trial", "shown character",
+                          "pressed character", "reaction time(ms)"])
 
     def paintEvent(self, event):
         qp = QtGui.QPainter()
@@ -112,42 +127,43 @@ class ClickRecorder(QtWidgets.QWidget):
         self.drawText(event, qp)
         qp.end()
 
-
     def drawText(self, event, qp):
         qp.setPen(QtGui.QColor(168, 34, 3))
         qp.setFont(QtGui.QFont('Decorative', 22))
         if self.counter > -1:
-            if self.counter < int(self.description[2]) + 1 and self.currentTest < 3:
+            if self.counter < int(self.description[2])\
+               + 1 and self.currentTest < 3:
                 self.text = ""
                 self.drawRect(qp)
-            elif self.counter < int(self.description[2]) + 1 and self.currentTest > 2:
+            if self.counter < int(self.description[2])\
+               + 1 and self.currentTest > 2:
                 self.showRandomXOrM(qp)
             if self.counter == int(self.description[2]) + 1:
-                if self.currentTest < 4:
+                if self.pos < 3:
                     self.draw = False
                     self.drawRect(qp)
-                    self.currentTest = self.currentTest + 1
+                    self.pos += 1
+                    self.currentTest = self.order[self.pos]
                     self.counter = -1
                     self.organizeTest()
                 else:
                     self.text = "Thank you!"
         qp.drawText(event.rect(), QtCore.Qt.AlignCenter, self.text)
 
-    def showRandomXOrM(self,qp):
-        if self.draw == True:
-            random = randint(1,100)
+    def showRandomXOrM(self, qp):
+        if self.draw is True:
+            random = randint(1, 100)
             if random % 2 == 0:
-                self.shownCharacter = "X"
+                self.shownCharacter = "x"
                 self.text = "X"
             else:
-                self.shownCharacter = "M"
+                self.shownCharacter = "m"
                 self.text = "M"
         else:
-            print ("FALSE")
             self.text = ""
 
-    def drawRect(self,qp):
-        if self.draw == True:
+    def drawRect(self, qp):
+        if self.draw is True:
             self.shownCharacter = "Signal"
             rect = QtCore.QRect(350, 200, 80, 80)
             qp.setBrush(QtGui.QColor(168, 34, 3))
