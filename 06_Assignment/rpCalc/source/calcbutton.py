@@ -30,7 +30,7 @@ class CalcButton(QtWidgets.QPushButton):
     def clickEvent(self):
         """Emits signal with button text.
         """
-        print(str(time.time()) + ": clickEvent")
+        print(str(time.time()) + ";clickEvent")
         self.activated.emit(self.text())
 
     def sizeHint(self):

@@ -493,7 +493,7 @@ class CalcDlg(QtWidgets.QWidget):
     def keyPressEvent(self, keyEvent):
         """Event handler for keys - checks for numbers and typed commands.
         """
-        print(str(time.time()) + ": keyPressEvent")
+        print(str(time.time()) + ";keyPressEvent")
         button = self.mainDict.get(keyEvent.key())
         if not self.entryStr and button:
             button.clickEvent()
